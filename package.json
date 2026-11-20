@@ -1,0 +1,28 @@
+{
+  "name": "servedir",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build:web": "tsc --noEmit && vite build",
+    "build": "npm run build:web && npm run licenses && bash scripts/build.sh",
+    "licenses": "node scripts/licenses.mjs",
+    "format": "prettier --write web/src web/index.html tests *.json *.ts scripts/*.mjs .github .goreleaser.yaml README.md",
+    "test:ui": "playwright test"
+  },
+  "dependencies": {
+    "dompurify": "^3.3.0",
+    "highlight.js": "^11.11.1",
+    "lucide": "^0.468.0",
+    "markdown-it": "^15.0.3",
+    "mermaid": "^12.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/markdown-it": "^14.1.2",
+    "prettier": "3.10.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8"
+  }
+}

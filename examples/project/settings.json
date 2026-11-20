@@ -1,0 +1,6 @@
+{
+  "name": "A local workspace",
+  "theme": "sage",
+  "features": ["markdown", "mermaid", "offline"],
+  "readOnly": true
+}
