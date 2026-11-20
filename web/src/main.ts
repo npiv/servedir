@@ -14,7 +14,6 @@ import {
   Music2,
   Archive,
   Search,
-  ArrowUpRight,
   ArrowDown,
   ArrowUp,
   ArrowLeft,
@@ -26,11 +25,8 @@ import {
   EyeOff,
   Sun,
   Moon,
-  Monitor,
-  HardDrive,
-  Command,
-  X,
   Check,
+  Copy,
   Link2,
   CircleAlert,
   type IconNode,
@@ -68,7 +64,6 @@ const icons: Record<string, IconNode> = {
   Music2,
   Archive,
   Search,
-  ArrowUpRight,
   ArrowDown,
   ArrowUp,
   ArrowLeft,
@@ -80,20 +75,19 @@ const icons: Record<string, IconNode> = {
   EyeOff,
   Sun,
   Moon,
-  Monitor,
-  HardDrive,
-  Command,
-  X,
   Check,
+  Copy,
   Link2,
   CircleAlert,
 };
+
 const icon = (name: string, cls = "") => {
   const svg = createElement(icons[name] || File);
   svg.setAttribute("aria-hidden", "true");
-  svg.setAttribute("class", `icon ${cls}`);
+  svg.setAttribute("class", cls ? `icon ${cls}` : "icon");
   return svg.outerHTML;
 };
+
 const esc = (text: string) =>
   text.replace(
     /[&<>"']/g,
@@ -102,6 +96,7 @@ const esc = (text: string) =>
         c
       ]!,
   );
+
 const urlFor = (path: string) =>
   path ? `/?path=${encodeURIComponent(path)}` : "/";
 const fileURL = (path: string, download = false) =>
@@ -119,6 +114,7 @@ const isCode = (name: string) =>
   );
 const isDocument = (name: string) =>
   isMD(name) || /\.(txt|pdf|rst|csv|log|docx?|odt|rtf)$/i.test(name);
+
 const dateFormat = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
@@ -129,6 +125,7 @@ const collator = new Intl.Collator(undefined, {
   sensitivity: "base",
 });
 const pageSize = 100;
+
 let listing: Listing | null = null;
 let filter: Filter = "all";
 let query = "";
@@ -142,6 +139,7 @@ let source = false;
 let routeEpoch = 0;
 let controller = new AbortController();
 let theme = "light";
+
 try {
   theme =
     localStorage.getItem("servedir-theme") ||
@@ -152,27 +150,19 @@ try {
 document.documentElement.dataset.theme = theme;
 
 app.innerHTML = `
-  <aside class="sidebar">
-    <a class="brand" href="/" data-path="" aria-label="servedir home"><span class="brand-mark">${icon("FolderOpen")}</span><span>servedir<span class="brand-dot">.</span></span></a>
-    <div class="sidebar-body">
-      <p class="eyebrow">WORKSPACE</p>
-      <a class="workspace" href="/" data-path=""><span class="workspace-icon">${icon("HardDrive")}</span><span><strong id="root-name">Local files</strong><small>On this computer</small></span>${icon("ChevronRight")}</a>
-      <div class="nav-section"><p class="eyebrow">IN THIS FOLDER</p>
-        <nav class="filters" aria-label="Filter files">
-          <button data-filter="all" class="active" aria-label="All files" title="All files">${icon("Folder")}<span>All files</span><span class="nav-count" id="count-all"></span></button>
-          <button data-filter="documents" aria-label="Documents" title="Documents">${icon("FileText")}<span>Documents</span><span class="nav-count" id="count-documents"></span></button>
-          <button data-filter="media" aria-label="Images and media" title="Images and media">${icon("Image")}<span>Images & media</span><span class="nav-count" id="count-media"></span></button>
-          <button data-filter="code" aria-label="Code and data" title="Code and data">${icon("FileCode2")}<span>Code & data</span><span class="nav-count" id="count-code"></span></button>
-        </nav>
-      </div>
-      <div class="sidebar-note"><span class="note-symbol">${icon("Eye")}</span><p>A little home<br>for your files.</p><small>Browse, read, explore.<br>Everything stays on your computer.</small></div>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <nav class="breadcrumbs" id="breadcrumbs" aria-label="Breadcrumb"></nav>
+      <button type="button" class="icon-btn" id="theme-toggle" aria-label="Switch to dark theme">${icon("Moon")}</button>
     </div>
-    <div class="sidebar-footer"><div class="local-status"><span class="status-dot"></span><span>Just localhost</span>${icon("Monitor")}</div><div class="footer-controls"><small id="version">servedir</small><button class="icon-button" id="theme-toggle" aria-label="Switch to dark theme">${icon("Moon")}</button></div></div>
-  </aside>
-  <div class="main-shell"><header class="topbar"><div class="topbar-label">${icon("FolderOpen")}<span>File explorer</span></div><span class="local-badge"><span class="status-dot"></span>LOCAL SESSION</span></header><main id="main" tabindex="-1"></main><div class="app-footer"><span>Made for the folder you’re in.</span><span>${icon("Command")} <kbd>/</kbd> to search <span class="footer-divider">·</span> <kbd>Esc</kbd> to go back</span></div></div>
-  <div id="toast" class="toast" role="status"></div>`;
+  </header>
+  <main id="main" tabindex="-1"></main>
+  <div id="toast" class="toast" role="status"></div>
+`;
 
 const main = document.querySelector<HTMLElement>("#main")!;
+const breadcrumbsEl = document.querySelector<HTMLElement>("#breadcrumbs")!;
+
 function bytes(n: number | null): string {
   if (n === null) return "—";
   if (n < 1024) return `${n} B`;
@@ -184,11 +174,13 @@ function bytes(n: number | null): string {
   } while (n >= 1024 && i < units.length - 1);
   return `${n.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${units[i]}`;
 }
+
 function dateCell(value: string | null) {
   return value
     ? `<time datetime="${esc(value)}" title="${esc(new Date(value).toLocaleString())}">${esc(dateFormat.format(new Date(value)))}</time>`
-    : '<span class="unavailable" title="Creation time is not available from this filesystem">—</span>';
+    : '<span class="unavailable" title="Unavailable">—</span>';
 }
+
 function kind(e: Entry) {
   if (!e.accessible) return "Unavailable";
   if (e.kind === "directory") return "Folder";
@@ -198,10 +190,10 @@ function kind(e: Entry) {
     (
       {
         txt: "Text",
-        jpg: "JPEG image",
-        jpeg: "JPEG image",
-        png: "PNG image",
-        svg: "SVG image",
+        jpg: "JPEG",
+        jpeg: "JPEG",
+        png: "PNG",
+        svg: "SVG",
         pdf: "PDF",
         json: "JSON",
         csv: "CSV",
@@ -212,6 +204,7 @@ function kind(e: Entry) {
     )[ext] || (ext ? ext.toUpperCase() : "File")
   );
 }
+
 function fileIcon(e: Entry) {
   if (e.kind === "directory") return "Folder";
   if (isImage(e.name)) return "Image";
@@ -221,6 +214,7 @@ function fileIcon(e: Entry) {
   if (/\.(zip|tar|gz|7z|rar)$/i.test(e.name)) return "Archive";
   return isDocument(e.name) ? "FileText" : "File";
 }
+
 function iconTone(e: Entry) {
   if (e.kind === "directory") return "folder";
   if (isMD(e.name)) return "markdown";
@@ -229,6 +223,7 @@ function iconTone(e: Entry) {
   if (extension(e.name) === "pdf") return "pdf";
   return "other";
 }
+
 function matchesFilter(e: Entry, f: Filter) {
   if (f === "all") return true;
   if (e.kind === "directory") return false;
@@ -238,10 +233,20 @@ function matchesFilter(e: Entry, f: Filter) {
       ? isImage(e.name) || isVideo(e.name) || isAudio(e.name)
       : isCode(e.name);
 }
-function breadcrumb(path: string) {
+
+function updateBreadcrumbs(path: string) {
+  const rootName = listing?.rootName || "Home";
   const parts = path.split("/").filter(Boolean);
-  return `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/" data-path="">${icon("HardDrive")}${esc(listing?.rootName || "Home")}</a>${parts.map((part, i) => `${icon("ChevronRight")}<a href="${urlFor(parts.slice(0, i + 1).join("/"))}" data-path="${esc(parts.slice(0, i + 1).join("/"))}" ${i === parts.length - 1 ? 'aria-current="page"' : ""}>${esc(part)}</a>`).join("")}</nav>`;
+  const rootCurrent = parts.length === 0 ? ' aria-current="page"' : "";
+  breadcrumbsEl.innerHTML = `<a class="crumb crumb-root" href="/" data-path="" title="${esc(listing?.rootPath || rootName)}"${rootCurrent}>${icon("FolderOpen")}<span>${esc(rootName)}</span></a>${parts
+    .map((part, i) => {
+      const target = parts.slice(0, i + 1).join("/");
+      const current = i === parts.length - 1 ? ' aria-current="page"' : "";
+      return `<span class="crumb-sep" aria-hidden="true">/</span><a class="crumb" href="${urlFor(target)}" data-path="${esc(target)}"${current}>${esc(part)}</a>`;
+    })
+    .join("")}`;
 }
+
 async function api<T>(endpoint: string, path: string): Promise<T> {
   const response = await fetch(
     `/api/${endpoint}?path=${encodeURIComponent(path)}`,
@@ -252,6 +257,7 @@ async function api<T>(endpoint: string, path: string): Promise<T> {
     throw new Error(data.message || "Could not read this file.");
   return data;
 }
+
 function navigate(path: string, hash = "") {
   history.pushState(null, "", urlFor(path) + hash);
   query = "";
@@ -259,52 +265,91 @@ function navigate(path: string, hash = "") {
   filter = "all";
   void route();
 }
-function updateSidebar() {
+
+function updateFilters() {
   const entries =
     listing?.entries.filter((e) => hidden || !e.name.startsWith(".")) || [];
   for (const f of ["all", "documents", "media", "code"] as Filter[]) {
-    document.querySelector(`#count-${f}`)!.textContent = String(
-      entries.filter((e) => matchesFilter(e, f)).length,
-    );
+    const countEl = document.querySelector(`#count-${f}`);
+    if (countEl) {
+      countEl.textContent = String(
+        entries.filter((e) => matchesFilter(e, f)).length,
+      );
+    }
     const button = document.querySelector<HTMLButtonElement>(
       `[data-filter="${f}"]`,
-    )!;
-    button.classList.toggle("active", filter === f && !currentFile);
-    button.setAttribute("aria-pressed", String(filter === f && !currentFile));
-  }
-  if (listing) {
-    document.querySelector("#root-name")!.textContent = listing.rootName;
-    document
-      .querySelector(".workspace")!
-      .setAttribute("title", listing.rootPath);
-    document.querySelector("#version")!.textContent = `v${listing.version}`;
+    );
+    if (button) {
+      const active = filter === f;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    }
   }
 }
+
 function renderDirectory() {
   if (!listing) return;
   currentFile = null;
-  document.title = `${listing.path.split("/").pop() || listing.rootName} · servedir`;
+  main.className = "view-directory";
   const title = listing.path.split("/").pop() || listing.rootName;
-  main.innerHTML = `${breadcrumb(listing.path)}
-    <section class="directory-heading"><div><p class="eyebrow">YOUR LOCAL WORKSPACE</p><h1>${esc(title)}</h1><p class="subtitle" id="directory-summary"></p></div><span class="heading-illustration">${icon("FolderOpen")}</span></section>
-    <div class="toolbar"><label class="search-box">${icon("Search")}<input id="search" type="search" placeholder="Find a file in this folder…" aria-label="Find a file in this folder" value="${esc(query)}" autocomplete="off"><kbd>/</kbd></label><div class="toolbar-actions"><button class="button subtle" id="hidden-toggle" aria-label="Hidden files" title="Show or hide hidden files" aria-pressed="${hidden}">${icon(hidden ? "Eye" : "EyeOff")}<span>Hidden files</span></button><button class="button icon-only" id="refresh" aria-label="Refresh folder">${icon("RefreshCw")}</button></div></div>
-    <section class="file-panel" aria-label="Directory contents"><div class="table-scroll"><table><thead><tr>${(
-      [
-        ["name", "Name"],
-        ["kind", "Type"],
-        ["size", "Size"],
-        ["created", "Created"],
-        ["modified", "Modified"],
-      ] as [Sort, string][]
-    )
-      .map(
-        ([key, label]) =>
-          `<th scope="col" data-column="${key}"><button data-sort="${key}">${label}<span class="sort-icon"></span></button></th>`,
-      )
-      .join(
-        "",
-      )}<th scope="col" class="row-action"><span class="sr-only">Actions</span></th></tr></thead><tbody id="file-rows"></tbody></table></div><div id="empty-state"></div><footer class="table-footer"><span id="visible-summary"></span><div id="pagination"></div></footer></section>
-    <p class="directory-hint">${icon("FileText")} Markdown opens as a document, diagrams and all.<span>Creation dates appear when your filesystem provides them.</span></p>`;
+  document.title = listing.path ? `${title} — ${listing.rootName}` : title;
+  updateBreadcrumbs(listing.path);
+
+  main.innerHTML = `
+    <div class="controls">
+      <label class="search-box">
+        ${icon("Search")}
+        <input id="search" type="search" placeholder="Filter files…" aria-label="Filter files" value="${esc(query)}" autocomplete="off">
+        <kbd>/</kbd>
+      </label>
+      <div class="filter-pills" role="group" aria-label="Filter files">
+        <button type="button" data-filter="all">All files<span class="pill-count" id="count-all"></span></button>
+        <button type="button" data-filter="documents">Documents<span class="pill-count" id="count-documents"></span></button>
+        <button type="button" data-filter="media">Media<span class="pill-count" id="count-media"></span></button>
+        <button type="button" data-filter="code">Code<span class="pill-count" id="count-code"></span></button>
+      </div>
+      <div class="controls-actions">
+        <button type="button" class="btn ghost" id="hidden-toggle" aria-label="Hidden files" title="Show or hide hidden files" aria-pressed="${hidden}">
+          ${icon(hidden ? "Eye" : "EyeOff")}<span>Hidden</span>
+        </button>
+        <button type="button" class="icon-btn" id="refresh" aria-label="Refresh folder" title="Refresh">
+          ${icon("RefreshCw")}
+        </button>
+      </div>
+    </div>
+    <section class="file-list" aria-label="Directory contents">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              ${(
+                [
+                  ["name", "Name"],
+                  ["kind", "Type"],
+                  ["size", "Size"],
+                  ["created", "Created"],
+                  ["modified", "Modified"],
+                ] as [Sort, string][]
+              )
+                .map(
+                  ([key, label]) =>
+                    `<th scope="col" data-column="${key}" class="col-${key}"><button type="button" data-sort="${key}">${label}<span class="sort-icon"></span></button></th>`,
+                )
+                .join("")}
+              <th scope="col" class="row-action"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="file-rows"></tbody>
+        </table>
+      </div>
+      <div id="empty-state"></div>
+      <footer class="list-footer">
+        <span id="visible-summary"></span>
+        <div id="pagination"></div>
+      </footer>
+    </section>
+  `;
+
   document
     .querySelector<HTMLInputElement>("#search")!
     .addEventListener("input", (e) => {
@@ -312,14 +357,27 @@ function renderDirectory() {
       page = 0;
       renderRows();
     });
+
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-filter]")
+    .forEach((button) =>
+      button.addEventListener("click", () => {
+        filter = button.dataset.filter as Filter;
+        page = 0;
+        renderRows();
+      }),
+    );
+
   document.querySelector("#hidden-toggle")!.addEventListener("click", () => {
     hidden = !hidden;
     page = 0;
     renderDirectory();
   });
+
   document
     .querySelector("#refresh")!
     .addEventListener("click", () => void route());
+
   document
     .querySelectorAll<HTMLButtonElement>("[data-sort]")
     .forEach((button) =>
@@ -334,16 +392,19 @@ function renderDirectory() {
         renderRows();
       }),
     );
+
   renderRows();
 }
+
 function renderRows() {
   if (!listing) return;
   const visible = listing.entries.filter(
     (e) => hidden || !e.name.startsWith("."),
   );
   const folders = visible.filter((e) => e.kind === "directory").length;
-  document.querySelector("#directory-summary")!.textContent =
-    `${folders} ${folders === 1 ? "folder" : "folders"} · ${visible.length - folders} ${visible.length - folders === 1 ? "file" : "files"} · ${bytes(visible.reduce((n, e) => n + (e.size || 0), 0))} in files`;
+  const filesCount = visible.length - folders;
+  const totalBytes = visible.reduce((n, e) => n + (e.size || 0), 0);
+
   const entries = visible
     .filter(
       (e) =>
@@ -371,23 +432,43 @@ function renderRows() {
       }
       return (descending ? -cmp : cmp) || collator.compare(a.name, b.name);
     });
+
   page = Math.min(page, Math.max(0, Math.ceil(entries.length / pageSize) - 1));
   const rows = entries.slice(page * pageSize, (page + 1) * pageSize);
+
   document.querySelector("#file-rows")!.innerHTML = rows
     .map(
       (e) =>
-        `<tr class="${e.accessible ? "" : "disabled-row"}"><td class="name-cell">${e.accessible ? `<a class="file-link" href="${urlFor(e.path)}" data-path="${esc(e.path)}">` : '<span class="file-link" title="Unavailable, unsupported, or outside this directory">'}<span class="file-icon ${iconTone(e)}">${icon(fileIcon(e))}</span><span class="file-name">${esc(e.name)}</span>${e.symlink ? icon("Link2", "symlink-icon") : ""}${e.accessible ? "</a>" : "</span>"}</td><td class="kind-cell">${esc(kind(e))}</td><td class="size-cell">${bytes(e.size)}</td><td class="date-cell">${dateCell(e.created)}</td><td class="date-cell">${dateCell(e.modified)}</td><td class="row-action">${e.kind === "directory" && e.accessible ? `<a class="icon-button" href="${urlFor(e.path)}" data-path="${esc(e.path)}" aria-label="Open ${esc(e.name)}">${icon("ChevronRight")}</a>` : e.accessible ? `<a class="icon-button" href="${fileURL(e.path, true)}" download aria-label="Download ${esc(e.name)}">${icon("Download")}</a>` : icon("CircleAlert")}</td></tr>`,
+        `<tr class="${e.accessible ? "" : "disabled-row"}"><td class="col-name">${e.accessible ? `<a class="file-link" href="${urlFor(e.path)}" data-path="${esc(e.path)}">` : '<span class="file-link" title="Unavailable">'}<span class="file-icon ${iconTone(e)}">${icon(fileIcon(e))}</span><span class="file-name">${esc(e.name)}</span>${e.symlink ? icon("Link2", "symlink-icon") : ""}${e.accessible ? "</a>" : "</span>"}</td><td class="col-kind">${esc(kind(e))}</td><td class="col-size">${bytes(e.size)}</td><td class="col-created">${dateCell(e.created)}</td><td class="col-modified">${dateCell(e.modified)}</td><td class="row-action">${e.kind === "directory" && e.accessible ? `<a class="icon-btn" href="${urlFor(e.path)}" data-path="${esc(e.path)}" aria-label="Open ${esc(e.name)}">${icon("ChevronRight")}</a>` : e.accessible ? `<a class="icon-btn" href="${fileURL(e.path, true)}" download aria-label="Download ${esc(e.name)}">${icon("Download")}</a>` : icon("CircleAlert")}</td></tr>`,
     )
     .join("");
+
   document.querySelector("#empty-state")!.innerHTML = entries.length
     ? ""
-    : `<div class="empty-state"><span class="empty-icon">${icon(query || filter !== "all" ? "Search" : "FolderOpen")}</span><h2>${query || filter !== "all" ? "No matching files" : "A little room to breathe"}</h2><p>${query || filter !== "all" ? "Try another name or choose All files." : "This folder is empty. Files you add will appear when you refresh."}</p></div>`;
+    : `<div class="empty-state"><span class="empty-icon">${icon(query || filter !== "all" ? "Search" : "FolderOpen")}</span><h2>${query || filter !== "all" ? "No matching files" : "Empty folder"}</h2><p>${query || filter !== "all" ? "Try a different filter or search term." : "This folder contains no files."}</p></div>`;
+
+  const hiddenCount = listing.entries.length - visible.length;
+  const filtered = query !== "" || filter !== "all";
+  const summaryParts: string[] = [];
+  if (filtered) {
+    summaryParts.push(`${entries.length} of ${visible.length} items`);
+  } else {
+    if (folders)
+      summaryParts.push(`${folders} ${folders === 1 ? "folder" : "folders"}`);
+    if (filesCount || !folders)
+      summaryParts.push(`${filesCount} ${filesCount === 1 ? "file" : "files"}`);
+    if (filesCount) summaryParts.push(bytes(totalBytes));
+  }
+  if (hiddenCount > 0) summaryParts.push(`${hiddenCount} hidden`);
+
   document.querySelector("#visible-summary")!.textContent =
-    `${entries.length ? page * pageSize + 1 : 0}–${Math.min((page + 1) * pageSize, entries.length)} of ${entries.length} items${visible.length !== listing.entries.length ? ` · ${listing.entries.length - visible.length} hidden` : ""}`;
+    summaryParts.join(" · ");
+
   document.querySelector("#pagination")!.innerHTML =
     entries.length > pageSize
-      ? `<button class="icon-button" id="previous-page" aria-label="Previous page" ${page === 0 ? "disabled" : ""}>${icon("ChevronLeft")}</button><span>${page + 1} / ${Math.ceil(entries.length / pageSize)}</span><button class="icon-button" id="next-page" aria-label="Next page" ${(page + 1) * pageSize >= entries.length ? "disabled" : ""}>${icon("ChevronRight")}</button>`
-      : `<span class="footer-local">${icon("HardDrive")} Stored locally</span>`;
+      ? `<button type="button" class="icon-btn" id="previous-page" aria-label="Previous page" ${page === 0 ? "disabled" : ""}>${icon("ChevronLeft")}</button><span class="page-indicator">${page + 1} / ${Math.ceil(entries.length / pageSize)}</span><button type="button" class="icon-btn" id="next-page" aria-label="Next page" ${(page + 1) * pageSize >= entries.length ? "disabled" : ""}>${icon("ChevronRight")}</button>`
+      : "";
+
   document.querySelector("#previous-page")?.addEventListener("click", () => {
     page--;
     renderRows();
@@ -396,6 +477,7 @@ function renderRows() {
     page++;
     renderRows();
   });
+
   document.querySelectorAll<HTMLElement>("[data-column]").forEach((th) => {
     const active = th.dataset.column === sort;
     th.setAttribute(
@@ -406,7 +488,8 @@ function renderRows() {
       ? icon(descending ? "ArrowDown" : "ArrowUp")
       : "";
   });
-  updateSidebar();
+
+  updateFilters();
 }
 
 const md = new MarkdownIt({
@@ -424,10 +507,11 @@ const md = new MarkdownIt({
     return esc(text);
   },
 });
+
 const defaultFence = md.renderer.rules.fence!;
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   if (tokens[idx].info.trim().toLowerCase() === "mermaid")
-    return `<div class="diagram" data-diagram="true"><span class="diagram-label">DIAGRAM</span><pre class="mermaid-source">${esc(tokens[idx].content)}</pre><div class="diagram-output"></div></div>`;
+    return `<div class="diagram" data-diagram="true"><pre class="mermaid-source">${esc(tokens[idx].content)}</pre><div class="diagram-output"></div></div>`;
   return defaultFence(tokens, idx, options, env, self);
 };
 
@@ -484,6 +568,12 @@ function rewriteDocument(article: HTMLElement, docPath: string) {
     if (local) img.src = fileURL(local.path);
     img.loading = "lazy";
   });
+  article.querySelectorAll<HTMLTableElement>("table").forEach((table) => {
+    const wrap = document.createElement("div");
+    wrap.className = "md-table-wrap";
+    table.parentNode?.insertBefore(wrap, table);
+    wrap.appendChild(table);
+  });
 }
 
 async function renderDiagrams(article: HTMLElement, epoch: number) {
@@ -492,13 +582,46 @@ async function renderDiagrams(article: HTMLElement, epoch: number) {
   try {
     const { default: mermaid } = await import("mermaid");
     if (epoch !== routeEpoch || !article.isConnected) return;
+    const isDark = theme === "dark";
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
-      theme: theme === "dark" ? "dark" : "neutral",
+      theme: "base",
+      themeVariables: isDark
+        ? {
+            darkMode: true,
+            background: "#0d1117",
+            mainBkg: "#151b23",
+            primaryColor: "#172554",
+            primaryTextColor: "#e6edf3",
+            primaryBorderColor: "#3b82f6",
+            secondaryColor: "#161b22",
+            tertiaryColor: "#1c2430",
+            lineColor: "#8b949e",
+            textColor: "#e6edf3",
+            nodeBorder: "#30363d",
+            fontFamily:
+              "-apple-system, BlinkMacSystemFont, Inter, Segoe UI, system-ui, sans-serif",
+          }
+        : {
+            darkMode: false,
+            background: "#ffffff",
+            mainBkg: "#f8fafc",
+            primaryColor: "#eff6ff",
+            primaryTextColor: "#111827",
+            primaryBorderColor: "#93c5fd",
+            secondaryColor: "#f8fafc",
+            tertiaryColor: "#f1f5f9",
+            lineColor: "#64748b",
+            textColor: "#111827",
+            nodeBorder: "#cbd5e1",
+            fontFamily:
+              "-apple-system, BlinkMacSystemFont, Inter, Segoe UI, system-ui, sans-serif",
+          },
       suppressErrorRendering: true,
       maxTextSize: 50000,
-      fontFamily: "system-ui, sans-serif",
+      fontFamily:
+        "-apple-system, BlinkMacSystemFont, Inter, Segoe UI, system-ui, sans-serif",
       htmlLabels: false,
       flowchart: { htmlLabels: false },
       secure: [
@@ -529,15 +652,12 @@ async function renderDiagrams(article: HTMLElement, epoch: number) {
       } catch {
         const error = document.createElement("p");
         error.className = "diagram-error";
-        error.textContent =
-          "This diagram could not be rendered. Its source is shown below.";
+        error.textContent = "Could not render diagram.";
         block.insertBefore(error, code);
       }
     }
   } catch {
-    toast(
-      "The diagram renderer could not load. Diagram source is still available.",
-    );
+    toast("Diagram renderer unavailable.");
   }
 }
 
@@ -545,28 +665,64 @@ function renderViewer(e: Entry, epoch: number) {
   currentFile = e;
   source = false;
   content = "";
-  document.title = `${e.name} · servedir`;
+  main.className = "view-viewer";
+  document.title = listing?.rootName
+    ? `${e.name} — ${listing.rootName}`
+    : e.name;
+  updateBreadcrumbs(e.path);
+
   const parent = e.path.split("/").slice(0, -1).join("/");
-  main.innerHTML = `${breadcrumb(e.path)}<section class="viewer-heading"><div class="viewer-title"><a class="button icon-only" href="${urlFor(parent)}" data-path="${esc(parent)}" aria-label="Back to folder">${icon("ArrowLeft")}</a><span class="file-icon ${iconTone(e)}">${icon(fileIcon(e))}</span><div><h1>${esc(e.name)}</h1><p class="subtitle">${esc(kind(e))}<span>·</span>${bytes(e.size)}<span>·</span>Modified ${dateCell(e.modified)}</p></div></div><a class="button primary" href="${fileURL(e.path, true)}" download>${icon("Download")}<span>Download</span></a></section><section class="preview-panel"><header class="preview-toolbar"><div class="tabs" role="tablist" aria-label="File view"><button id="preview-tab" role="tab" aria-selected="true">${icon("Eye")}Preview</button><button id="source-tab" role="tab" aria-selected="false">${icon("FileCode2")}Source</button></div><button class="button subtle" id="copy-link" aria-label="Copy link" title="Copy link">${icon("Link2")}<span>Copy link</span></button></header><div id="preview-content" role="tabpanel" aria-label="File content"><div class="loading"><span class="spinner"></span>Opening your file…</div></div></section>`;
-  updateSidebar();
+  const hasTabs = isMD(e.name);
+  const metaParts = [
+    esc(kind(e)),
+    bytes(e.size),
+    e.modified ? dateCell(e.modified) : "",
+  ].filter(Boolean);
+
+  main.innerHTML = `
+    <div class="viewer-bar">
+      <div class="viewer-bar-left">
+        <a class="icon-btn" href="${urlFor(parent)}" data-path="${esc(parent)}" aria-label="Back to folder" title="Back (Esc)">${icon("ArrowLeft")}</a>
+        ${
+          hasTabs
+            ? `<div class="segmented" role="tablist" aria-label="File view"><button type="button" id="preview-tab" role="tab" aria-selected="true">Preview</button><button type="button" id="source-tab" role="tab" aria-selected="false">Source</button></div>`
+            : ""
+        }
+        <span class="file-meta">${metaParts.join(" · ")}</span>
+      </div>
+      <div class="viewer-bar-right">
+        <button type="button" class="btn ghost" id="copy-link" aria-label="Copy link" title="Copy link">${icon("Link2")}<span>Copy link</span></button>
+        <a class="btn primary" href="${fileURL(e.path, true)}" download>${icon("Download")}<span>Download</span></a>
+      </div>
+    </div>
+    <div id="preview-content" class="viewer-body"${hasTabs ? ' role="tabpanel" aria-label="File content"' : ""}>
+      <div class="loading"><span class="spinner"></span>Loading…</div>
+    </div>
+  `;
+
   document.querySelector("#copy-link")!.addEventListener(
     "click",
     () =>
       void navigator.clipboard
         .writeText(location.href)
         .then(() => toast("Link copied"))
-        .catch(() => toast("Copy the address from your browser.")),
+        .catch(() => toast("Copy the URL from your browser.")),
   );
-  document.querySelector("#preview-tab")!.addEventListener("click", () => {
-    source = false;
-    void renderFileContent(e, epoch);
-  });
-  document.querySelector("#source-tab")!.addEventListener("click", () => {
-    source = true;
-    void renderFileContent(e, epoch);
-  });
+
+  if (hasTabs) {
+    document.querySelector("#preview-tab")!.addEventListener("click", () => {
+      source = false;
+      void renderFileContent(e, epoch);
+    });
+    document.querySelector("#source-tab")!.addEventListener("click", () => {
+      source = true;
+      void renderFileContent(e, epoch);
+    });
+  }
+
   void loadFile(e, epoch);
 }
+
 async function loadFile(e: Entry, epoch: number) {
   const media =
     isImage(e.name) ||
@@ -574,7 +730,6 @@ async function loadFile(e: Entry, epoch: number) {
     isAudio(e.name) ||
     extension(e.name) === "pdf";
   if (media) {
-    document.querySelector("#source-tab")!.setAttribute("hidden", "");
     await renderFileContent(e, epoch);
     return;
   }
@@ -585,20 +740,28 @@ async function loadFile(e: Entry, epoch: number) {
     await renderFileContent(e, epoch);
   } catch (error) {
     if (epoch !== routeEpoch) return;
-    document.querySelector("#source-tab")!.setAttribute("hidden", "");
-    document.querySelector("#preview-content")!.innerHTML =
-      `<div class="empty-state"><span class="empty-icon">${icon(fileIcon(e))}</span><h2>Keep the original close</h2><p>${esc((error as Error).message)}</p><a class="button primary" href="${fileURL(e.path, true)}" download>${icon("Download")}Download file</a></div>`;
+    document.querySelector(".segmented")?.setAttribute("hidden", "");
+    document.querySelector("#preview-content")!.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-icon">${icon(fileIcon(e))}</span>
+        <h2>${esc(e.name)}</h2>
+        <p>${esc((error as Error).message)}</p>
+        <a class="btn primary" href="${fileURL(e.path, true)}" download>${icon("Download")}Download file</a>
+      </div>
+    `;
   }
 }
+
 async function renderFileContent(e: Entry, epoch: number) {
   if (epoch !== routeEpoch) return;
   const panel = document.querySelector<HTMLElement>("#preview-content")!;
   document
-    .querySelector("#preview-tab")!
-    .setAttribute("aria-selected", String(!source));
+    .querySelector("#preview-tab")
+    ?.setAttribute("aria-selected", String(!source));
   document
-    .querySelector("#source-tab")!
-    .setAttribute("aria-selected", String(source));
+    .querySelector("#source-tab")
+    ?.setAttribute("aria-selected", String(source));
+
   if (
     source ||
     (!isMD(e.name) &&
@@ -612,14 +775,23 @@ async function renderFileContent(e: Entry, epoch: number) {
       content.length <= 200000 && hljs.getLanguage(lang)
         ? hljs.highlight(content, { language: lang }).value
         : esc(content);
-    panel.innerHTML = `<div class="source-meta">${content.split("\n").length} lines <span>UTF-8</span><button class="button subtle" id="copy-source">${icon("FileText")}Copy text</button></div><pre class="source-code"><code>${highlighted}</code></pre>`;
+    const lineCount = content.split("\n").length;
+    panel.innerHTML = `
+      <div class="code-frame">
+        <div class="source-meta">
+          <span>${lineCount} ${lineCount === 1 ? "line" : "lines"} · UTF-8</span>
+          <button type="button" class="btn ghost compact" id="copy-source">${icon("Copy")}<span>Copy</span></button>
+        </div>
+        <pre class="source-code"><code>${highlighted}</code></pre>
+      </div>
+    `;
     document.querySelector("#copy-source")!.addEventListener(
       "click",
       () =>
         void navigator.clipboard
           .writeText(content)
-          .then(() => toast("Text copied"))
-          .catch(() => toast("Select the text and copy it from your browser.")),
+          .then(() => toast("Copied"))
+          .catch(() => toast("Select text to copy.")),
     );
   } else if (isMD(e.name)) {
     panel.innerHTML = `<article class="markdown-body">${DOMPurify.sanitize(md.render(content))}</article>`;
@@ -643,7 +815,7 @@ async function renderFileContent(e: Entry, epoch: number) {
   } else if (isAudio(e.name)) {
     panel.innerHTML = `<div class="audio-preview">${icon("Music2")}<h2>${esc(e.name)}</h2><audio src="${fileURL(e.path)}" controls preload="metadata">Your browser cannot play this audio.</audio></div>`;
   } else {
-    panel.innerHTML = `<iframe class="pdf-preview" src="${fileURL(e.path)}" title="${esc(e.name)}"></iframe><p class="pdf-note">PDF preview uses your browser’s built-in viewer. You can also download the original.</p>`;
+    panel.innerHTML = `<iframe class="pdf-preview" src="${fileURL(e.path)}" title="${esc(e.name)}"></iframe>`;
   }
 }
 
@@ -653,7 +825,7 @@ async function route() {
   controller = new AbortController();
   const path = new URLSearchParams(location.search).get("path") || "";
   main.innerHTML =
-    '<div class="loading page-loading"><span class="spinner"></span>Reading your folder…</div>';
+    '<div class="loading page-loading"><span class="spinner"></span></div>';
   window.scrollTo(0, 0);
   try {
     const info = path ? await api<Entry>("info", path) : null;
@@ -672,17 +844,28 @@ async function route() {
   } catch (error) {
     if (epoch !== routeEpoch) return;
     currentFile = null;
-    main.innerHTML = `${breadcrumb("")}<div class="empty-state page-empty"><span class="empty-icon">${icon("CircleAlert")}</span><h1>Couldn’t open this path</h1><p>${esc((error as Error).message)}</p><a class="button primary" href="/" data-path="">${icon("ArrowLeft")}Back to home folder</a></div>`;
+    main.className = "view-directory";
+    updateBreadcrumbs("");
+    main.innerHTML = `
+      <div class="empty-state page-empty">
+        <span class="empty-icon">${icon("CircleAlert")}</span>
+        <h1>Couldn’t open path</h1>
+        <p>${esc((error as Error).message)}</p>
+        <a class="btn primary" href="/" data-path="">${icon("ArrowLeft")}Back to root</a>
+      </div>
+    `;
   }
 }
+
 let toastTimeout: ReturnType<typeof setTimeout>;
 function toast(message: string) {
   const node = document.querySelector<HTMLElement>("#toast")!;
   node.innerHTML = `${icon("Check")}<span>${esc(message)}</span>`;
   node.classList.add("visible");
   clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => node.classList.remove("visible"), 2600);
+  toastTimeout = setTimeout(() => node.classList.remove("visible"), 2200);
 }
+
 app.addEventListener("click", (event) => {
   const target = (event.target as Element).closest<HTMLAnchorElement>(
     "a[data-path]",
@@ -699,21 +882,7 @@ app.addEventListener("click", (event) => {
   event.preventDefault();
   navigate(target.dataset.path || "", target.dataset.hash || "");
 });
-document
-  .querySelectorAll<HTMLButtonElement>("[data-filter]")
-  .forEach((button) =>
-    button.addEventListener("click", () => {
-      filter = button.dataset.filter as Filter;
-      page = 0;
-      if (currentFile && listing) {
-        history.pushState(null, "", urlFor(listing.path));
-        routeEpoch++;
-        controller.abort();
-        currentFile = null;
-        renderDirectory();
-      } else if (listing) renderRows();
-    }),
-  );
+
 function updateThemeButton() {
   const button = document.querySelector("#theme-toggle")!;
   button.innerHTML = icon(theme === "dark" ? "Sun" : "Moon");
@@ -722,6 +891,7 @@ function updateThemeButton() {
     `Switch to ${theme === "dark" ? "light" : "dark"} theme`,
   );
 }
+
 document.querySelector("#theme-toggle")!.addEventListener("click", () => {
   theme = theme === "light" ? "dark" : "light";
   document.documentElement.dataset.theme = theme;
@@ -734,11 +904,15 @@ document.querySelector("#theme-toggle")!.addEventListener("click", () => {
   if (currentFile && isMD(currentFile.name) && !source)
     void renderFileContent(currentFile, routeEpoch);
 });
+
 document.addEventListener("keydown", (event) => {
   const editing = /INPUT|TEXTAREA/.test((event.target as HTMLElement).tagName);
   if (event.key === "/" && !editing && !event.ctrlKey && !event.metaKey) {
-    event.preventDefault();
-    document.querySelector<HTMLInputElement>("#search")?.focus();
+    const search = document.querySelector<HTMLInputElement>("#search");
+    if (search) {
+      event.preventDefault();
+      search.focus();
+    }
   }
   if (event.key === "Escape") {
     if (editing) {
@@ -748,17 +922,20 @@ document.addEventListener("keydown", (event) => {
       page = 0;
       if (listing && !currentFile) renderRows();
       input.blur();
-    } else if (currentFile)
+    } else if (currentFile) {
       navigate(currentFile.path.split("/").slice(0, -1).join("/"));
-    else if (listing?.path)
+    } else if (listing?.path) {
       navigate(listing.path.split("/").slice(0, -1).join("/"));
+    }
   }
 });
+
 window.addEventListener("popstate", () => {
   query = "";
   page = 0;
   filter = "all";
   void route();
 });
+
 updateThemeButton();
 void route();

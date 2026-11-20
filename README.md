@@ -81,7 +81,7 @@ The browser tests use system Chromium when it exists at `/usr/bin/chromium`, or 
 
 ## Release
 
-The repository contains GitHub Actions checks and GoReleaser packaging for Linux, macOS, and Windows on x86-64 and ARM64. Place this directory at the root of its own Git repository. A pushed `v*` tag runs checks and creates a **draft** GitHub release with archives and SHA-256 checksums. Publish the draft when ready. No remote repository or release is created by a local build.
+The repository contains GitHub Actions checks and GoReleaser packaging for Linux, macOS, and Windows on x86-64 and ARM64. Pushing to `master`/`main` runs checks, automatically creates the next patch tag (starting at `v0.1.0`), and publishes a GitHub release with archives and SHA-256 checksums. Pushing an explicit `v*` tag publishes that exact version. No remote repository or release is created by a local build.
 
 To build a local release with GoReleaser installed, use `goreleaser release --snapshot --clean`. Review `.goreleaser.yaml` before adapting release destinations or signing.
 

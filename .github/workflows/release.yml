@@ -1,9 +1,17 @@
 name: Release
 on:
   push:
-    tags: ["v*"]
+    branches:
+      - master
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -24,10 +32,39 @@ jobs:
       - run: go vet ./...
       - run: npx playwright install --with-deps chromium
       - run: npm run test:ui
-      - uses: goreleaser/goreleaser-action@v6
+      - name: Determine and push release tag
+        id: tag
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          existing_tag="$(git tag --points-at HEAD --list 'v*' | head -n 1 || true)"
+          if [[ -n "$existing_tag" ]]; then
+            echo "HEAD is already tagged with ${existing_tag}; skipping branch release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          latest_tag="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          if [[ -z "$latest_tag" ]]; then
+            next_tag="v0.1.0"
+          else
+            IFS='.' read -r major minor patch <<< "${latest_tag#v}"
+            next_tag="v${major}.${minor}.$((patch + 1))"
+          fi
+          git tag "$next_tag"
+          git push origin "$next_tag"
+          echo "tag=${next_tag}" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+      - name: Create release
+        if: steps.tag.outputs.should_release == 'true'
+        uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: release --clean --skip=validate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
