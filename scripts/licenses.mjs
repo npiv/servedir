@@ -42,6 +42,7 @@ try {
 } catch {
   go = ["mise", "exec", "go@latest", "--", "go"];
 }
+execFileSync(go[0], [...go.slice(1), "mod", "download"], { stdio: "ignore" });
 const module = JSON.parse(
   execFileSync(
     go[0],
