@@ -33,7 +33,11 @@ func fixture(t *testing.T) (*app, string) {
 }
 
 func request(a *app, endpoint, file string) *httptest.ResponseRecorder {
-	r := httptest.NewRequest("GET", "http://127.0.0.1:8000"+endpoint+"?path="+url.QueryEscape(file), nil)
+	target := endpoint + "?path=" + url.QueryEscape(file)
+	if endpoint == "/open/" {
+		target = (&url.URL{Path: endpoint + file}).EscapedPath()
+	}
+	r := httptest.NewRequest("GET", "http://127.0.0.1:8000"+target, nil)
 	w := httptest.NewRecorder()
 	a.ServeHTTP(w, r)
 	return w
@@ -93,8 +97,8 @@ func TestRootConfinement(t *testing.T) {
 	if err := os.Symlink("README.md", filepath.Join(dir, "inside.md")); err != nil {
 		t.Fatal(err)
 	}
-	for _, endpoint := range []string{"/api/list", "/api/info", "/api/preview", "/file", "/download"} {
-		for _, p := range []string{"../secret", "/etc/passwd", `..\secret`, "escape/secret"} {
+	for _, endpoint := range []string{"/api/list", "/api/info", "/api/preview", "/file", "/download", "/open/"} {
+		for _, p := range []string{"../secret", "notes/../../secret", "/etc/passwd", `..\secret`, "escape/secret", "bad\x00name"} {
 			w := request(a, endpoint, p)
 			if w.Code < 400 || strings.Contains(w.Body.String(), "outside-secret") {
 				t.Errorf("escaped root via %s %q: %d", endpoint, p, w.Code)
@@ -119,6 +123,10 @@ func TestRootConfinement(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("in-root symlink should work: %d", w.Code)
 	}
+	w = request(a, "/open/", "inside.md")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "# Welcome") {
+		t.Fatalf("direct in-root symlink: %d %s", w.Code, w.Body.String())
+	}
 }
 
 func TestRequestBoundaries(t *testing.T) {
@@ -134,17 +142,76 @@ func TestRequestBoundaries(t *testing.T) {
 		{"read-only", "POST", "localhost:8000", "", "", 405},
 		{"same-origin", "GET", "localhost:8000", "http://localhost:8000", "same-origin", 200},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest(tt.method, "http://"+tt.host+"/api/list", nil)
-			r.Header.Set("Origin", tt.origin)
-			r.Header.Set("Sec-Fetch-Site", tt.site)
-			w := httptest.NewRecorder()
-			a.ServeHTTP(w, r)
-			if w.Code != tt.want {
-				t.Fatalf("want %d, got %d", tt.want, w.Code)
+	for _, endpoint := range []string{"/api/list", "/open/sample.html"} {
+		for _, tt := range tests {
+			t.Run(endpoint+"/"+tt.name, func(t *testing.T) {
+				r := httptest.NewRequest(tt.method, "http://"+tt.host+endpoint, nil)
+				r.Header.Set("Origin", tt.origin)
+				r.Header.Set("Sec-Fetch-Site", tt.site)
+				w := httptest.NewRecorder()
+				a.ServeHTTP(w, r)
+				if w.Code != tt.want {
+					t.Fatalf("want %d, got %d", tt.want, w.Code)
+				}
+			})
+		}
+	}
+}
+
+func TestOpenInBrowser(t *testing.T) {
+	a, dir := fixture(t)
+	files := []struct {
+		name, content, contentType string
+	}{
+		{"sample.html", "<!doctype html><h1>Hello</h1><script>window.active=true</script>", "text/html"},
+		{"notes/space # café%25.HTML", "<h1>Encoded name</h1>", "text/html"},
+		{"notes/site.css", "h1 { color: red; }", "text/css"},
+		{"notes/site.js", "document.title = 'Hello';", "javascript"},
+		{"notes/config.json", `{"name":"Hello"}`, "application/json"},
+		{"notes/icon.svg", `<svg xmlns="http://www.w3.org/2000/svg"/>`, "image/svg+xml"},
+		{"notes/plain.unknownextension", "plain text", "text/plain"},
+	}
+	for _, file := range files {
+		t.Run(file.name, func(t *testing.T) {
+			if err := os.WriteFile(filepath.Join(dir, file.name), []byte(file.content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			w := request(a, "/open/", file.name)
+			if w.Code != 200 || w.Body.String() != file.content {
+				t.Fatalf("original content: %d %q", w.Code, w.Body.String())
+			}
+			if !strings.Contains(w.Header().Get("Content-Type"), file.contentType) {
+				t.Fatalf("native content type: %s", w.Header().Get("Content-Type"))
+			}
+			if !strings.HasPrefix(w.Header().Get("Content-Disposition"), "inline;") {
+				t.Fatal("direct files should open inline")
+			}
+			if w.Header().Get("Content-Security-Policy") != "" {
+				t.Fatal("direct files must allow native scripts and styles")
 			}
 		})
+	}
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		r := httptest.NewRequest(method, "http://localhost:8000/open/sample.html?path=missing&version=1", nil)
+		r.Header.Set("Range", "bytes=0-8")
+		w := httptest.NewRecorder()
+		a.ServeHTTP(w, r)
+		if w.Code != http.StatusPartialContent || w.Header().Get("Content-Length") != "9" {
+			t.Fatalf("direct %s range: %d %v", method, w.Code, w.Header())
+		}
+		want := "<!doctype"
+		if method == http.MethodHead {
+			want = ""
+		}
+		if w.Body.String() != want {
+			t.Fatalf("direct %s body: %q", method, w.Body.String())
+		}
+	}
+	for _, name := range []string{"", "notes", "missing.html"} {
+		w := request(a, "/open/", name)
+		if w.Code < 400 {
+			t.Fatalf("must reject unavailable files and directories: %q: %d", name, w.Code)
+		}
 	}
 }
 

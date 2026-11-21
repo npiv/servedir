@@ -7,6 +7,7 @@ export default defineConfig({
     proxy: {
       "/api": "http://127.0.0.1:8000",
       "/file": "http://127.0.0.1:8000",
+      "/open": "http://127.0.0.1:8000",
       "/download": "http://127.0.0.1:8000",
     },
   },

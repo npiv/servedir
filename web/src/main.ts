@@ -20,6 +20,7 @@ import {
   ChevronRight,
   ChevronLeft,
   Download,
+  ExternalLink,
   RefreshCw,
   Eye,
   EyeOff,
@@ -70,6 +71,7 @@ const icons: Record<string, IconNode> = {
   ChevronRight,
   ChevronLeft,
   Download,
+  ExternalLink,
   RefreshCw,
   Eye,
   EyeOff,
@@ -101,6 +103,8 @@ const urlFor = (path: string) =>
   path ? `/?path=${encodeURIComponent(path)}` : "/";
 const fileURL = (path: string, download = false) =>
   `${download ? "/download" : "/file"}?path=${encodeURIComponent(path)}`;
+const browserURL = (path: string) =>
+  `/open/${path.split("/").map(encodeURIComponent).join("/")}`;
 const extension = (name: string) =>
   name.split(".").length > 1 ? name.split(".").pop()!.toLowerCase() : "";
 const isMD = (name: string) => /\.(md|markdown|mdown)$/i.test(name);
@@ -439,7 +443,7 @@ function renderRows() {
   document.querySelector("#file-rows")!.innerHTML = rows
     .map(
       (e) =>
-        `<tr class="${e.accessible ? "" : "disabled-row"}"><td class="col-name">${e.accessible ? `<a class="file-link" href="${urlFor(e.path)}" data-path="${esc(e.path)}">` : '<span class="file-link" title="Unavailable">'}<span class="file-icon ${iconTone(e)}">${icon(fileIcon(e))}</span><span class="file-name">${esc(e.name)}</span>${e.symlink ? icon("Link2", "symlink-icon") : ""}${e.accessible ? "</a>" : "</span>"}</td><td class="col-kind">${esc(kind(e))}</td><td class="col-size">${bytes(e.size)}</td><td class="col-created">${dateCell(e.created)}</td><td class="col-modified">${dateCell(e.modified)}</td><td class="row-action">${e.kind === "directory" && e.accessible ? `<a class="icon-btn" href="${urlFor(e.path)}" data-path="${esc(e.path)}" aria-label="Open ${esc(e.name)}">${icon("ChevronRight")}</a>` : e.accessible ? `<a class="icon-btn" href="${fileURL(e.path, true)}" download aria-label="Download ${esc(e.name)}">${icon("Download")}</a>` : icon("CircleAlert")}</td></tr>`,
+        `<tr class="${e.accessible ? "" : "disabled-row"}"><td class="col-name">${e.accessible ? `<a class="file-link" href="${urlFor(e.path)}" data-path="${esc(e.path)}">` : '<span class="file-link" title="Unavailable">'}<span class="file-icon ${iconTone(e)}">${icon(fileIcon(e))}</span><span class="file-name">${esc(e.name)}</span>${e.symlink ? icon("Link2", "symlink-icon") : ""}${e.accessible ? "</a>" : "</span>"}</td><td class="col-kind">${esc(kind(e))}</td><td class="col-size">${bytes(e.size)}</td><td class="col-created">${dateCell(e.created)}</td><td class="col-modified">${dateCell(e.modified)}</td><td class="row-action">${e.kind === "directory" && e.accessible ? `<a class="icon-btn" href="${urlFor(e.path)}" data-path="${esc(e.path)}" aria-label="Open ${esc(e.name)}">${icon("ChevronRight")}</a>` : e.accessible ? `<a class="icon-btn" href="${esc(browserURL(e.path))}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(e.name)} in browser" title="Open in browser (new tab)">${icon("ExternalLink")}</a><a class="icon-btn" href="${fileURL(e.path, true)}" download aria-label="Download ${esc(e.name)}">${icon("Download")}</a>` : icon("CircleAlert")}</td></tr>`,
     )
     .join("");
 
@@ -692,6 +696,7 @@ function renderViewer(e: Entry, epoch: number) {
       </div>
       <div class="viewer-bar-right">
         <button type="button" class="btn ghost" id="copy-link" aria-label="Copy link" title="Copy link">${icon("Link2")}<span>Copy link</span></button>
+        <a class="btn" id="open-browser" href="${esc(browserURL(e.path))}" target="_blank" rel="noopener noreferrer" aria-label="Open in browser" title="Open in browser (new tab)">${icon("ExternalLink")}<span>Open in browser</span></a>
         <a class="btn primary" href="${fileURL(e.path, true)}" download>${icon("Download")}<span>Download</span></a>
       </div>
     </div>

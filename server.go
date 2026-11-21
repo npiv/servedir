@@ -82,6 +82,10 @@ func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/":
 		a.assets.ServeHTTP(w, r)
 	default:
+		if strings.HasPrefix(r.URL.Path, "/open/") {
+			a.file(w, r)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/assets/") || r.URL.Path == "/favicon.svg" {
 			w.Header().Set("Cache-Control", "public, max-age=3600")
 			a.assets.ServeHTTP(w, r)
@@ -104,6 +108,11 @@ func localHost(host string) bool {
 
 func requestPath(r *http.Request) (string, error) {
 	p := r.URL.Query().Get("path")
+	if strings.HasPrefix(r.URL.Path, "/open/") {
+		// Keep the directory structure in the URL so relative resources and
+		// links resolve normally when opening a file directly in the browser.
+		p = strings.TrimPrefix(r.URL.Path, "/open/")
+	}
 	if p == "" || p == "." {
 		return ".", nil
 	}
@@ -289,15 +298,24 @@ func (a *app) file(w http.ResponseWriter, r *http.Request) {
 	ext := strings.ToLower(filepath.Ext(info.Name()))
 	contentType := mime.TypeByExtension(ext)
 	disposition := "inline"
+	direct := strings.HasPrefix(r.URL.Path, "/open/")
 	if r.URL.Path == "/download" {
 		disposition = "attachment"
 		contentType = "application/octet-stream"
-	} else if !strings.HasPrefix(contentType, "image/") && !strings.HasPrefix(contentType, "audio/") && !strings.HasPrefix(contentType, "video/") && contentType != "application/pdf" {
+	} else if !direct && !strings.HasPrefix(contentType, "image/") && !strings.HasPrefix(contentType, "audio/") && !strings.HasPrefix(contentType, "video/") && contentType != "application/pdf" {
 		contentType = "text/plain; charset=utf-8"
 	}
-	w.Header().Set("Content-Type", contentType)
+	if contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	}
 	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": info.Name()}))
-	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'")
+	if direct {
+		// Explicitly opening the original opts into its native browser behavior,
+		// including HTML styles and scripts. Previews remain sandboxed below.
+		w.Header().Del("Content-Security-Policy")
+	} else {
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'")
+	}
 	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 }
 

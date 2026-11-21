@@ -613,8 +613,8 @@ th.col-size button {
 }
 
 .row-action {
-  width: 40px;
-  min-width: 40px;
+  width: 72px;
+  min-width: 72px;
   padding: 0 4px !important;
   text-align: right;
   color: var(--soft);
@@ -670,6 +670,7 @@ tbody tr:hover .row-action .icon-btn,
 /* File viewer */
 .viewer-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -1305,11 +1306,13 @@ tbody tr:hover .row-action .icon-btn,
     margin-bottom: 16px;
   }
 
-  #copy-link span {
+  #copy-link span,
+  #open-browser span {
     display: none;
   }
 
-  #copy-link {
+  #copy-link,
+  #open-browser {
     width: 32px;
     padding: 0;
   }

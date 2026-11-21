@@ -40,6 +40,7 @@ On Windows, run `servedir.exe` from PowerShell, optionally adding its directory 
 - Filename search, file-type filters, hidden-file toggle, breadcrumbs, and 100-row pages.
 - Markdown tables, syntax-highlighted code, Mermaid diagrams, local images, relative document links, and heading anchors.
 - Preview/Source tabs, original-file downloads, and copy-link/copy-text actions.
+- Open in browser actions in the file list and viewer open originals in a new tab, including HTML pages with their relative stylesheets, scripts, and images.
 - Images, native browser PDF previews, and browser-supported audio/video playback.
 - Light/dark themes, narrow-screen layouts, `/` to search, and `Esc` to clear search or go up a directory.
 
@@ -47,7 +48,7 @@ Filtering applies to the current folder. Refresh reads changes from disk; there 
 
 ## File behavior
 
-The server binds only to `127.0.0.1` and is read-only. Root-confined filesystem operations prevent path traversal and symlink escapes. Symlinks that remain inside the root work; unavailable paths are shown disabled. Cross-origin browser requests and foreign Host headers are rejected. Raw HTML is displayed as text, Markdown HTML is escaped, and diagrams use strict rendering with SVG sanitization.
+The server binds only to `127.0.0.1` and is read-only. Root-confined filesystem operations prevent path traversal and symlink escapes. Symlinks that remain inside the root work; unavailable paths are shown disabled. Cross-origin browser requests and foreign Host headers are rejected. The default viewer displays HTML as text, escapes Markdown HTML, and uses strict diagram rendering with SVG sanitization. Choosing **Open in browser** serves the original file at `/open/<path>` with its native content type; HTML runs its styles and scripts on the local server's origin. Relative resources and links resolve within that URL's directory structure, and files remain confined to the served directory.
 
 Creation time is shown only when the filesystem provides it. Linux uses `statx` birth time; macOS and Windows use their native creation timestamps. Unavailable creation time is displayed as “—”; Unix metadata-change time is never substituted. Dates use the browser's locale, and hovering a date shows its full timestamp. Folder sizes are omitted to avoid recursive scans; summary size is the sum of files in the current listing.
 
